@@ -1,5 +1,6 @@
 package com.example.demo.server;
 
+import com.example.demo.app.MessageCrackerImpl;
 import jakarta.annotation.PostConstruct;
 import org.springframework.stereotype.Component;
 import quickfix.*;
@@ -7,9 +8,18 @@ import quickfix.field.*;
 import quickfix.fix44.NewOrderSingle;
 
 import java.time.Instant;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 @Component
 public class SimpleInitiator implements Application {
+
+    private final ExecutorService messageProcessingPool = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors() * 2);
+    private final MessageCrackerImpl cracker;
+
+    public SimpleInitiator(MessageCrackerImpl cracker) {
+        this.cracker = cracker;
+    }
 
     @PostConstruct
     public void init() throws Exception {
@@ -18,11 +28,10 @@ public class SimpleInitiator implements Application {
 
     public void initiator() throws Exception {
         SessionSettings settings = new SessionSettings("quickfixj-initiator.cfg");
-        Application app = new SimpleInitiator();
         MessageStoreFactory storeFactory = new MemoryStoreFactory();
         LogFactory logFactory = new ScreenLogFactory(true, true, true);
         MessageFactory messageFactory = new DefaultMessageFactory();
-        Initiator initiator = new SocketInitiator(app, storeFactory, settings, logFactory, messageFactory);
+        Initiator initiator = new SocketInitiator(this, storeFactory, settings, logFactory, messageFactory);
         initiator.start();
         System.out.println("Initiator started. Press Ctrl+C to stop.");
     }
@@ -61,6 +70,16 @@ public class SimpleInitiator implements Application {
     @Override
     public void fromApp(Message message, SessionID sessionId) {
         System.out.println("Received: " + message);
+
+        final Message copy = (Message) message.clone();
+        messageProcessingPool.submit(() -> {
+            try {
+                cracker.crack(copy, sessionId);
+            } catch (Exception e) {
+                System.out.println("Error processing message");
+                e.printStackTrace();
+            }
+        });
     }
 
     // Convenience: send a test NewOrderSingle after logon (you can add this in onLogon)
