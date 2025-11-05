@@ -1,0 +1,16 @@
+spring:
+  application:
+    name: demo
+  kafka:
+    bootstrap-servers: localhost:9092
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+
+fix:
+  config-path: classpath:quickfixj.cfg
+  jdbc-store: false
+  session-id: FIX_ACCEPTOR
+
+server:
+  port: 8080
